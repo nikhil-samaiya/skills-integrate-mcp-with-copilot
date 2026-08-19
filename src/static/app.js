@@ -3,6 +3,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const loginButton = document.getElementById("login-button");
+  const logoutButton = document.getElementById("logout-button");
+  const teacherSession = document.getElementById("teacher-session");
+  const teacherOnlyMessage = document.getElementById("teacher-only-message");
+  const loginDialog = document.getElementById("login-dialog");
+  const loginForm = document.getElementById("login-form");
+  const cancelLogin = document.getElementById("cancel-login");
+
+  function setTeacherSession(username) {
+    const loggedIn = Boolean(username);
+    signupForm.classList.toggle("hidden", !loggedIn);
+    teacherOnlyMessage.classList.toggle("hidden", loggedIn);
+    loginButton.classList.toggle("hidden", loggedIn);
+    logoutButton.classList.toggle("hidden", !loggedIn);
+    teacherSession.textContent = loggedIn ? `Logged in as ${username}` : "";
+    teacherSession.classList.toggle("hidden", !loggedIn);
+  }
+
+  async function checkTeacherSession() {
+    const response = await fetch("/auth/me");
+    if (response.ok) {
+      const teacher = await response.json();
+      setTeacherSession(teacher.username);
+    }
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -30,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.participants
                   .map(
                     (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}" title="Remove participant">Remove</button></li>`
                   )
                   .join("")}
               </ul>
@@ -155,6 +180,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  loginButton.addEventListener("click", () => loginDialog.showModal());
+  cancelLogin.addEventListener("click", () => loginDialog.close());
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const response = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value,
+      }),
+    });
+
+    if (!response.ok) {
+      messageDiv.textContent = "Invalid teacher credentials.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      return;
+    }
+
+    const teacher = await response.json();
+    setTeacherSession(teacher.username);
+    loginForm.reset();
+    loginDialog.close();
+    fetchActivities();
+  });
+
+  logoutButton.addEventListener("click", async () => {
+    await fetch("/auth/logout", { method: "POST" });
+    setTeacherSession(null);
+    fetchActivities();
+  });
+
   // Initialize app
-  fetchActivities();
+  checkTeacherSession().finally(fetchActivities);
 });
